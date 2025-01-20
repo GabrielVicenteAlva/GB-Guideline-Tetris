@@ -1,0 +1,1 @@
+E:\Juegos\VBA\VisualBoyAdvance-M.exe tetris.gb
