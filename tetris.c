@@ -48,7 +48,7 @@ enum {
 	ANIMATION
 } currentPhase;
 
-struct { // based on BCD
+struct { // works similar to BCD
 	uint8_t f;	// frame
 	uint8_t s;	// seconds
 	uint8_t m;	// minutes
@@ -132,30 +132,54 @@ const uint8_t songs[] = {8,14,20,36,40,48,50,59,7,67};
 const uint8_t songBanks[] = {2,2,2,3,3,3,3,3,2,3};
 uint8_t currSongBank;
 
-void endFrame();
-void drawMatrix();
-void drawScore();
-void drawTime();
+void endFrame(void);
+void drawMatrix(void);
+void drawScore(void);
+void drawLineCount(void);
+void resetScore(void);
+void drawTime(void);
 uint8_t checkCollision(struct Tetrimino*);
-void gameInput();
-void pauseScreen();
+void gameInput(void);
+void pauseScreen(void);
 
-uint32_t score = 0;
 uint8_t level = 1;
 uint8_t nLines = 0;
+BCD scorebcd = MAKE_BCD(0);
+unsigned char scorebuff[10];
+enum ScoreType {
+    Zero, // 0
+    SoftDrop, // 1
+    HardDrop, // 2
+    Single, // 3
+    Double, // 4
+    Triple, // 5
+    Tetris, // 6
+    TSpin, // 7
+    TSSingle, // 8
+    TSDouble, // 9
+    TSTriple // 10
+};
+BCD scoreTable[11];
+BCD baseScores[] = {
+    MAKE_BCD(0), MAKE_BCD(1), MAKE_BCD(2), MAKE_BCD(100),
+    MAKE_BCD(300), MAKE_BCD(500), MAKE_BCD(800), MAKE_BCD(400),
+    MAKE_BCD(800), MAKE_BCD(1200), MAKE_BCD(1600),
+};
+void levelUpUpdateScores(void);
+void addScore(uint8_t);
 
 uint8_t lowestLine;
 uint8_t lockdownTimer;
 uint8_t actionsBeforeLockdown;
 uint8_t lastMovWasSpin = 0;
 
-void switchRom1() {
+void switchRom1(void) {
 	SWITCH_ROM(1);
 }
-void switchRom2() {
+void switchRom2(void) {
 	SWITCH_ROM(currSongBank);
 }
-void soundEffectsFunc() {
+void soundEffectsFunc(void) {
 	if(*currSoundEff) {
 		(**currSoundEff)();
 		currSoundEff++;
@@ -166,7 +190,7 @@ void soundEffectsFunc() {
 	}
 }
 
-void main() {
+void main(void) {
 // Init
 	DISPLAY_ON;	
 	NR52_REG = 0x80;
@@ -194,6 +218,7 @@ title:
 		SWITCH_ROM(2);
 		hUGE_init(&huge_music);
 	}
+	// Draw Screen
 	SWITCH_ROM(1);
 	set_bkg_data(0, 256, titleTiles);
 	set_bkg_tiles(0,0,20,18,titleMap);
@@ -208,7 +233,7 @@ titleLoop:
 	}
 	if(!last_jp && (jp & (J_A|J_START)))
 		goto menu1;
-	gameTimer.f++; // For the seed
+	gameTimer.f++; // For the random seed
 	endFrame();
 	goto titleLoop;
 	
@@ -216,6 +241,7 @@ titleLoop:
 menu1:
 	initrand(gameTimer.f);
 	
+	// Clear sprites
 	set_sprite_data(0, 16, spriteTiles);
 	set_sprite_tile(0,0);
 	set_sprite_tile(1,0);
@@ -230,9 +256,11 @@ menu1:
 	SWITCH_ROM(1);
 	set_bkg_tiles(0,0,20,18,blankScreen);
 	
+	// Init Music in A-type
 	hUGE_set_position(songs[musicID-'A']);
 	currSongBank = songBanks[musicID-'A'];
 	
+	// Draw Menu
 	set_bkg_data(0, 256, gameTiles);
 	endFrame();
 	set_bkg_tiles(0,0,20,18,menu1Map);
@@ -241,15 +269,16 @@ menu1:
 	set_tile_xy(14,5,RIGHTARR);
 	set_bkg_tiles(6,5,8,1,menuText+8*gameMode);
 	
-	if(musicID=='I')
+	if(musicID=='I') // Music OFF text
 		set_bkg_tiles(7,11,6,1,menuText+40);
-	else {
+	else { // Music type letter
 		set_tile_xy(7,11,LETTER(musicID));
 		set_bkg_tiles(8,11,5,1,menuText+32);
 	}
 
 menuModeLoop:
 	SWITCH_ROM(1);
+	// Make text blink
 	if(frame==24)
 		set_bkg_tiles(6,5,8,1,menuText);
 	else if(frame==40) {
@@ -258,21 +287,23 @@ menuModeLoop:
 	}
 	if(!last_jp) {
 		if(jp & J_B) {
+		    // Go back to title
 			set_bkg_tiles(0,0,20,18,blankScreen);
 			endFrame();
 			frame = 0;
 			goto title;
 		} else if(jp & (J_A|J_START)) {
-				set_bkg_tiles(0,0,20,18,blankScreen);
+		    // Start game
+			set_bkg_tiles(0,0,20,18,blankScreen);
 			endFrame();
 			goto game;
 		} else if(jp & J_RIGHT) {
+		    // Change game mode
 			gameMode++;
 			if(gameMode==3) gameMode=1;
 				set_bkg_tiles(6,5,8,1,menuText+8*gameMode);
-			frame=0;
+			frame=0; // Resets blink of arrows
 			SFX1;
-			
 		} else if(jp & J_LEFT) {
 			gameMode--;
 			if(gameMode==0) gameMode=2;
@@ -280,7 +311,8 @@ menuModeLoop:
 			frame=0;
 			SFX1;
 		} else if(jp & (J_UP|J_DOWN)) {
-						set_tile_xy(5,5,0x00);
+		    // Select music
+			set_tile_xy(5,5,0x00);
 			set_tile_xy(14,5,0x00);
 			set_tile_xy(6,11,LEFTARR);
 			set_tile_xy(13,11,RIGHTARR);
@@ -295,6 +327,7 @@ menuModeLoop:
 	goto menuModeLoop;
 	
 menuMusicLoop:
+    // Similar to menuModeLoop
 	if(frame==24)
 		set_bkg_tiles(7,11,6,1,menuText);
 	else if(frame==40) {
@@ -317,14 +350,16 @@ menuMusicLoop:
 			goto game;
 		} else if(jp & J_RIGHT) {
 			musicID++;
+			// Loop back
 			if(musicID=='J') musicID = 'A';
+			// Music off
 			if(musicID=='I') {
 				set_bkg_tiles(7,11,6,1,menuText+40);
-			}
-			else {
+			} else {
 				set_tile_xy(7,11,LETTER(musicID));
 				set_bkg_tiles(8,11,5,1,menuText+32);
 			}
+			// Change music
 			currSongBank = songBanks[musicID-'A'];
 			hUGE_set_position(songs[musicID-'A']);
 			frame=0;
@@ -332,7 +367,7 @@ menuMusicLoop:
 			musicID--;
 			if(musicID=='@') {
 				musicID = 'I';
-			set_bkg_tiles(7,11,6,1,menuText+40);
+			    set_bkg_tiles(7,11,6,1,menuText+40);
 			} else {
 				set_tile_xy(7,11,LETTER(musicID));
 				set_bkg_tiles(8,11,5,1,menuText+32);
@@ -362,6 +397,7 @@ menuMusicLoop:
 	goto menuMusicLoop;
 
 game:
+    // Show screen
 	set_bkg_tiles(0,0,20,18,gameMap);
 	if(gameMode==1)
 		set_bkg_tiles(14,6,5,1,menuText+48);
@@ -372,20 +408,24 @@ game:
 		set_tile_xy(17,7,NUMBER(0));
 		set_tile_xy(18,7,NUMBER(0));
 	}
-	
+	// Clear matrix and parameters
 	for(i=0;i<12*24;i++)
 		matrix[i] = gameMatrix[i];
 	fallingSpeed.w = fallingSpeeds[0];
-	
 	nLines = 0;
 	level = 1;
+	resetScore();
 	drawScore();
+	drawLineCount();
+	levelUpUpdateScores();
 
+    // tetrBag stores 2 bags of tetriminoes
 	bagPtr = tetrBag;
 	uint8_t *b;
 	uint8_t *B = tetrBag+7;
 	uint8_t *B2= tetrBag+14;
 	initrand(rand()+gameTimer.f);
+    // Shuffling the bags
 	for(b=tetrBag; b<B; b++) {
 		uint8_t temp = *b;
 		uint8_t *b2 = tetrBag+rand()%7;
@@ -480,12 +520,20 @@ falling:
 	if((jp&J_SELECT) && !holded && !(last_jp&J_SELECT))
 		goto hold;
 	gameInput();
+	// Hard Drop
 	if((jp&J_UP) && !(last_jp&J_UP)) {
+	    // score
+	    uint8_t distance = ghstTetr.y.h - currTetr.y.h;
+	    BCD bcd;
+	    uint2bcd(level*2*distance, &bcd);
+	    bcd_add(&scorebcd, &bcd);
+	    drawScore();
+	    // move piece to the ghost
 		currTetr = ghstTetr;
 		lastMovWasSpin = 0;
 		goto lockdown;
 	}
-		
+	// Soft Drop
 	if(jp&J_DOWN) {
 		if(!(last_jp&J_DOWN)) {
 			if(!*currSoundEff)
@@ -495,10 +543,16 @@ falling:
 		downMovement.w = level==1 ? 170 : fallingSpeed.w*20;
 	} else {
 		downMovement.w = fallingSpeed.w;
-		if(level==1 && gameTimer.f&1) // At level one falling speed should be 8 and half
+		// At level one falling speed should be 8 and half so I set it to 9 every other frame
+		if(level==1 && gameTimer.f&1)
 			downMovement.w++;
 	}
+	uint8_t ctyh = currTetr.y.h;
 	currTetr.y.w += downMovement.l;
+	if(jp&J_DOWN && currTetr.y.h>ctyh) {
+	    addScore(SoftDrop);
+	    drawScore();
+	}
 	do {
 		if(checkCollision(&currTetr)) {
 			currTetr.y.h--;
@@ -582,14 +636,22 @@ lockdown:
 	m = matrix + 12*currTetr.y.h + currTetr.x;
 	uint8_t tcorners = (*m>0) + (*(m+2)>0) + (*(m+24)>0) + (*(m+26)>0);
 	
+	// Sound effects and score for line clears
 	if(clearedLines>0) {
 		frame = 0;
-		if(clearedLines>3)
+		if(clearedLines>3) {
 			SFX7;
-		else if (currTetr.color==T && lastMovWasSpin && tcorners>=3)
+			addScore(6);
+		}
+		else if (currTetr.color==T && lastMovWasSpin && tcorners>=3) {
 			SFX7;
-		else
+			addScore(7+clearedLines);
+		}
+		else {
 			SFX5;
+			addScore(2+clearedLines);
+		}
+        drawScore();
 		if(gameMode==2)
 			goto elimination;
 		goto animate;
@@ -656,18 +718,20 @@ elimination:
 // Completion Phase
 	if(gameMode==2)
 		SFX6;
-	drawScore();
+	drawLineCount();
 	for(i=8;i;i--) {
 		// Check pause
 		if((jp&J_START) && !(last_jp&J_START))
 			pauseScreen();
 		endFrame();
 	}
+	// No level up for sprint
 	if(gameMode==2)
 		goto generation;
 	SFX6;
 	if(/*gameMode==1 && */levelUp && level<100) {
 		SFX8;
+		levelUpUpdateScores();
 		if(level<15)
 			fallingSpeed.w = fallingSpeeds[level];
 		else if(fallingSpeed.w<0x1000)
@@ -676,7 +740,7 @@ elimination:
 		if(level==100)
 			set_tile_xy(15,10,NUMBER(1));
 	}
-	drawScore();
+	drawLineCount();
 	goto generation;
 	// Game Over
 gameover:
@@ -699,20 +763,25 @@ gameover:
 void gameInput() {
 	if(jp&J_RIGHT) {
 		if(!(last_jp&J_RIGHT)) {
+		    // pressing right
 			frame = 0;
 			currTetr.x++;
 			if(checkCollision(&currTetr))
 				currTetr.x--;
 			else {
+			    // Only play the sound effect if there's not another already playing
 				if(!*currSoundEff)
 					SFX2;
+				// No T-spin
 				lastMovWasSpin = 0;
+				// Delay piece lock
 				if(currentPhase==LOCK && actionsBeforeLockdown) {
 					lockdownTimer = 15;
 					actionsBeforeLockdown--;
 				}
 			}
 		} else if(frame>7) {
+		    // DAS to the right
 			currTetr.x++;
 			if(checkCollision(&currTetr))
 				currTetr.x--;
@@ -758,12 +827,16 @@ void gameInput() {
 		frame++;
 	}
 	if((jp&J_A) && !(last_jp&J_A)) {
+	    // movTetr will be used to check if the rotated piece fits
 		movTetr = currTetr;
 		movTetr.rot++;
 		movTetr.rot &= 3;
+		// The SRS table is the same for every tetrimino except I
 		const char *srs = SRSR[movTetr.color==I][movTetr.rot];
+		// There's 5 pairs of coordinates
 		const char *end = srs + 10;
 		while(srs<end) {
+		    // Move temporal tetrimino and check if fits;
 			movTetr.y.h = currTetr.y.h + *srs++;
 			movTetr.x = currTetr.x + *srs++;
 			if(!checkCollision(&movTetr)) {
@@ -823,6 +896,7 @@ inline void endFrame() {
 }
 
 uint8_t checkCollision(struct Tetrimino *tetrimino) {
+    // Checks if there's a non empty cell in the tetrimino and the matrix at the same time
 	const uint8_t *t = tetriminos[tetrimino->color][tetrimino->rot];
 	const uint8_t *T = t + 16;
 	uint8_t *m = matrix + 12*tetrimino->y.h + tetrimino->x;
@@ -902,7 +976,7 @@ void drawMatrix() {
 		drawTime();
 }
 
-void drawScore() {
+void drawLineCount() {
 	BCD bcd;
 	uint8_t len;
 	uint8_t buffer[8];
@@ -914,19 +988,43 @@ void drawScore() {
 	
 	set_bkg_tiles(18-len, 10, len, 1, buffer+8-len);
 	
+	// Show Level
 	if(gameMode!=1)
 		return;
-		
 	uint2bcd(level, &bcd);
 	bcd2text(&bcd, NUMBER(0), buffer);
 	len = level<10 ? 1 : 2;
 	set_bkg_tiles(18-len, 7, len, 1, buffer+8-len);
 }
+void drawScore() {
+	bcd2text(&scorebcd, NUMBER(0), scorebuff);
+	set_bkg_tiles(13, 3, 7, 1, scorebuff+1);
+}
+void levelUpUpdateScores() {
+    BCD *table_p = scoreTable+1;
+    BCD *base_p = baseScores+1;
+	for(i=10;i;i--){
+	    bcd_add(table_p, base_p);
+	    table_p++;
+	    base_p++;
+	}
+}
+void addScore(enum ScoreType scoreType) {
+    bcd_add(&scorebcd, scoreTable + scoreType);
+}
+void resetScore() {
+    scorebcd = MAKE_BCD(0);
+    BCD *table_p = scoreTable+1;
+	for(i=10;i;i--){
+	    *table_p = MAKE_BCD(0);
+	    table_p++;
+	}
+}
 
 void pauseScreen() {
 	__critical {
-        remove_VBL(switchRom2);
         remove_VBL(hUGE_dosound);
+        remove_VBL(switchRom2);
     }
     SFX9;
 	uint8_t *fm = finalMatrix+60;
