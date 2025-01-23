@@ -14,8 +14,8 @@ test:
 %.o: %.c
 	$(CC) -c -o $@ $<
 
-tetris.gb:	tetris.o TitleTiles.o GameTiles.o BlankScreen.o SpriteTiles.o huge_music.o huge_music_2.o huge_music_3.o soundeffects.o
-	$(CC) -Wl-yt0x1A -Wl-yo4 -Wl-ya4 -Wl-l./hUGEDriver.lib -o tetris.gb tetris.o TitleTiles.o GameTiles.o BlankScreen.o SpriteTiles.o huge_music.o huge_music_2.o huge_music_3.o soundeffects.o
+tetris.gb:	tetris.o TitleTiles.o GameTiles.o BlankScreen.o SpriteTiles.o huge_music.o huge_music_2.o huge_music_3.o huge_music_4.o soundeffects.o
+	$(CC) -Wl-yt0x1A -Wl-yo4 -Wl-ya4 -Wl-l./hUGEDriver.lib -o tetris.gb tetris.o TitleTiles.o GameTiles.o BlankScreen.o SpriteTiles.o huge_music.o huge_music_2.o huge_music_3.o huge_music_4.o soundeffects.o
 	$(ROMUSE) $@
 
 

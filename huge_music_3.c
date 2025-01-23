@@ -3035,7 +3035,7 @@ const unsigned char P121[] = {
     DN(B_6,7,0xC08),
     DN(B_6,7,0xC08),
     DN(C_7,7,0xC08),
-    DN(___,0,0x000),
+    DN(___,0,0xB3A),
 };
 const unsigned char P122[] = {
     DN(C_5,10,0xE0C),

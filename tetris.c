@@ -128,8 +128,8 @@ const char SRSL[2][4][10] = {
 	}
 };
 
-const uint8_t songs[] = {8,14,20,36,40,48,50,59,7,67};
-const uint8_t songBanks[] = {2,2,2,3,3,3,3,3,2,3};
+const uint8_t songs[] = {8,14,20,36,40,48,59,50,69,7,67};
+const uint8_t songBanks[] = {2,2,2,3,3,3,3,3,1,2,3};
 uint8_t currSongBank;
 
 void endFrame(void);
@@ -269,7 +269,7 @@ menu1:
 	set_tile_xy(14,5,RIGHTARR);
 	set_bkg_tiles(6,5,8,1,menuText+8*gameMode);
 	
-	if(musicID=='I') // Music OFF text
+	if(musicID=='J') // Music OFF text
 		set_bkg_tiles(7,11,6,1,menuText+40);
 	else { // Music type letter
 		set_tile_xy(7,11,LETTER(musicID));
@@ -331,7 +331,7 @@ menuMusicLoop:
 	if(frame==24)
 		set_bkg_tiles(7,11,6,1,menuText);
 	else if(frame==40) {
-		if(musicID=='I')
+		if(musicID=='J')
 			set_bkg_tiles(7,11,6,1,menuText+40);
 		else {
 			set_tile_xy(7,11,LETTER(musicID));
@@ -351,9 +351,9 @@ menuMusicLoop:
 		} else if(jp & J_RIGHT) {
 			musicID++;
 			// Loop back
-			if(musicID=='J') musicID = 'A';
+			if(musicID=='K') musicID = 'A';
 			// Music off
-			if(musicID=='I') {
+			if(musicID=='J') {
 				set_bkg_tiles(7,11,6,1,menuText+40);
 			} else {
 				set_tile_xy(7,11,LETTER(musicID));
@@ -366,7 +366,7 @@ menuMusicLoop:
 		} else if(jp & J_LEFT) {
 			musicID--;
 			if(musicID=='@') {
-				musicID = 'I';
+				musicID = 'J';
 			    set_bkg_tiles(7,11,6,1,menuText+40);
 			} else {
 				set_tile_xy(7,11,LETTER(musicID));
@@ -381,7 +381,7 @@ menuMusicLoop:
 			set_tile_xy(14,5,RIGHTARR);
 			set_tile_xy(6,11,0x00);
 			set_tile_xy(13,11,0x00);
-			if(musicID=='I')
+			if(musicID=='J')
 				set_bkg_tiles(7,11,6,1,menuText+40);
 			else {
 				set_tile_xy(7,11,LETTER(musicID));
